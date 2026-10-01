@@ -56,10 +56,18 @@ from datetime import date
 #             col.metric(key.replace("-", " ").title(), info["stats"].get(key, "-"))
 
 
+import re
+from datetime import date
+from html import unescape
+
+import requests
+import streamlit as st
+
 BASE_URL = "https://science.nasa.gov/wp-json/wp/v2/apod-basic"
-EARLIEST = date(1995, 6, 16)   # the API has no pictures before this date
+EARLIEST = date(1995, 6, 16)          # first APOD ever
 
 
+# ---------- logic ----------
 def fetch_apod(pick_date: date, timeout: float = 8) -> dict:
     """Date goes in the path as YYMMDD, e.g. 2026-09-29 -> 260929. 404 if no entry."""
     r = requests.get(f"{BASE_URL}/{pick_date.strftime('%y%m%d')}", timeout=timeout)
@@ -67,22 +75,23 @@ def fetch_apod(pick_date: date, timeout: float = 8) -> dict:
     return r.json()
 
 
-def _text(s: str | None) -> str:
-    """Fields now contain HTML (links, <strong>, &amp;) - strip it to plain text."""
-    return html.unescape(re.sub(r"<[^>]+>", "", s or "")).strip()
+def to_text(s: str | None) -> str:
+    """Fields contain HTML (links, <strong>, &amp;) - strip it to plain text."""
+    return unescape(re.sub(r"<[^>]+>", "", s or "")).strip()
 
 
 def parse(data: dict) -> dict:
     return {
         "title": data.get("title", "(untitled)"),
         "date": data.get("date"),
-        "explanation": _text(data.get("explanation")).removeprefix("Explanation:").strip(),
-        "media_type": data.get("media_type", "image"),
-        "image_url": data.get("hdurl"),          # the picture (url is the article page!)
-        "page_url": data.get("permalink") or data.get("url"),
-        "copyright": _text(data.get("copyright")) or None,
+        "explanation": to_text(data.get("explanation")).removeprefix("Explanation:").strip(),
+        "image_url": data.get("hdurl"),                    # the picture
+        "page_url": data.get("permalink") or data.get("url"),  # the article page (NOT an image)
+        "copyright": to_text(data.get("copyright")) or None,
     }
 
+
+# ---------- UI ----------
 st.set_page_config(page_title="Space Picture of the Day", page_icon="🔭")
 st.title("🔭 Space Picture of the Day")
 st.caption("Source: NASA APOD (science.nasa.gov)")
@@ -100,6 +109,8 @@ if st.button("Show picture"):
         st.subheader(f"{info['title']}  ({info['date']})")
         if info["image_url"]:
             st.image(info["image_url"], width="stretch")
+        else:
+            st.info("No image file for this date - see the page below.")
         st.write(info["explanation"])
         st.caption("© " + info["copyright"] if info["copyright"] else "Public domain (NASA)")
         st.markdown(f"[Open on NASA's site]({info['page_url']})")
