@@ -56,32 +56,32 @@ from datetime import date
 #             col.metric(key.replace("-", " ").title(), info["stats"].get(key, "-"))
 
 
-BASE_URL = "https://api.nasa.gov/planetary/apod"
+BASE_URL = "https://science.nasa.gov/wp-json/wp/v2/apod-basic"
 EARLIEST = date(1995, 6, 16)   # the API has no pictures before this date
 
 
-def fetch_apod(pick_date: date | None = None, api_key: str = "DEMO_KEY", timeout: float = 6) -> dict:
-    """Raise requests.HTTPError for an invalid/future date or a bad key."""
-    params = {"api_key": api_key.strip() or "DEMO_KEY"}
-    if pick_date:
-        params["date"] = pick_date.isoformat()
-    r = requests.get(BASE_URL, params=params, timeout=timeout)
+def fetch_apod(pick_date: date, timeout: float = 8) -> dict:
+    """Date goes in the path as YYMMDD, e.g. 2026-09-29 -> 260929. 404 if no entry."""
+    r = requests.get(f"{BASE_URL}/{pick_date.strftime('%y%m%d')}", timeout=timeout)
     r.raise_for_status()
     return r.json()
 
 
+def _text(s: str | None) -> str:
+    """Fields now contain HTML (links, <strong>, &amp;) - strip it to plain text."""
+    return html.unescape(re.sub(r"<[^>]+>", "", s or "")).strip()
+
+
 def parse(data: dict) -> dict:
-    is_image = data.get("media_type", "image") == "image"
     return {
         "title": data.get("title", "(untitled)"),
         "date": data.get("date"),
-        "explanation": data.get("explanation", ""),
+        "explanation": _text(data.get("explanation")).removeprefix("Explanation:").strip(),
         "media_type": data.get("media_type", "image"),
-        "image_url": (data.get("hdurl") or data.get("url")) if is_image else None,
-        "video_url": data.get("url") if not is_image else None,
-        "copyright": data.get("copyright"),      # missing/None -> public domain
+        "image_url": data.get("hdurl"),          # the picture (url is the article page!)
+        "page_url": data.get("permalink") or data.get("url"),
+        "copyright": _text(data.get("copyright")) or None,
     }
-
 
 st.set_page_config(page_title="Space Picture of the Day", page_icon="🔭")
 st.title("🔭 Space Picture of the Day")
