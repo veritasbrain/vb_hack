@@ -85,25 +85,21 @@ def parse(data: dict) -> dict:
 
 st.set_page_config(page_title="Space Picture of the Day", page_icon="🔭")
 st.title("🔭 Space Picture of the Day")
-st.caption("Source: NASA APOD (api.nasa.gov)")
+st.caption("Source: NASA APOD (science.nasa.gov)")
 
 pick_date = st.date_input("Date", value=date.today(), min_value=EARLIEST, max_value=date.today())
-api_key = st.text_input("NASA API key (optional)", value="DEMO_KEY",
-                        help="DEMO_KEY is shared and rate-limited (30/hour, 50/day). "
-                             "Get your own free key at api.nasa.gov if it stops working.")
 
 if st.button("Show picture"):
     try:
-        info = parse(fetch_apod(pick_date, api_key))
+        info = parse(fetch_apod(pick_date))
     except requests.exceptions.HTTPError:
-        st.error("No picture found for that date, or the API key was rejected.")
+        st.error("No picture found for that date.")
     except requests.exceptions.RequestException:
-        st.error("Couldn't reach NASA's API - check your internet connection.")
+        st.error("Couldn't reach NASA - check your internet connection.")
     else:
         st.subheader(f"{info['title']}  ({info['date']})")
-        if info["media_type"] == "image" and info["image_url"]:
+        if info["image_url"]:
             st.image(info["image_url"], width="stretch")
-        elif info["video_url"]:
-            st.write(f"Today's APOD is a video: {info['video_url']}")
         st.write(info["explanation"])
         st.caption("© " + info["copyright"] if info["copyright"] else "Public domain (NASA)")
+        st.markdown(f"[Open on NASA's site]({info['page_url']})")
